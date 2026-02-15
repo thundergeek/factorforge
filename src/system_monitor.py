@@ -1,6 +1,6 @@
 import psutil
 import subprocess
-import torch
+import json
 
 def get_system_stats():
     stats = {
@@ -29,15 +29,27 @@ def get_system_stats():
         stats['cpu']['name'] = 'Unknown CPU'
         stats['cpu']['short_name'] = 'Unknown CPU'
     
-    if torch.cuda.is_available():
-        for i in range(torch.cuda.device_count()):
-            props = torch.cuda.get_device_properties(i)
-            stats['gpus'].append({
-                'id': i,
-                'name': props.name,
-                'memory_used_gb': round(torch.cuda.memory_allocated(i) / (1024**3), 1),
-                'memory_total_gb': round(props.total_memory / (1024**3), 1),
-                'utilization': 0
-            })
+    # Try nvidia-smi for GPU detection
+    try:
+        result = subprocess.run(
+            ['nvidia-smi', '--query-gpu=index,name,memory.used,memory.total', '--format=csv,noheader,nounits'],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        if result.returncode == 0:
+            for line in result.stdout.strip().split('\n'):
+                if line:
+                    parts = [p.strip() for p in line.split(',')]
+                    if len(parts) == 4:
+                        stats['gpus'].append({
+                            'id': int(parts[0]),
+                            'name': parts[1],
+                            'memory_used_gb': round(float(parts[2]) / 1024, 1),
+                            'memory_total_gb': round(float(parts[3]) / 1024, 1),
+                            'utilization': 0
+                        })
+    except:
+        pass
     
     return stats
