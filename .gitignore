@@ -2,3 +2,11 @@ data/*.parquet
 data/*.csv
 data/results/
 *.backup
+0*
+1*
+2*
+3*
+7*
+8*
+9*
+d*
