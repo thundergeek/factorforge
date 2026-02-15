@@ -5,7 +5,7 @@ AI discovers profitable trading factors automatically using local LLMs.
 ## Installation (3 steps)
 
 1. Install Docker: https://www.docker.com/get-started
-2. Run: curl -fsSL https://raw.githubusercontent.com/YOURUSERNAME/factorforge/main/install.sh | bash
+2. Run: curl -fsSL https://raw.githubusercontent.com/thundergeek/factorforge/main/install.sh | bash
 3. Open: http://localhost:8050
 
 ## Usage
