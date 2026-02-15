@@ -1,9 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO
 import threading
-import time
-from src.evolution.progress_tracker import get_progress
-from src.system_monitor import get_system_stats
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -14,6 +11,7 @@ def index():
 
 @app.route('/api/system_stats')
 def system_stats():
+    from src.system_monitor import get_system_stats
     return jsonify(get_system_stats())
 
 @app.route('/api/start_evolution', methods=['POST'])
@@ -23,7 +21,6 @@ def start_evolution():
     num_generations = data.get('generations', 10)
     population_size = data.get('population', 20)
     
-    # Start evolution in background thread
     def run():
         from src.evolution import run_evolution
         run_evolution(symbols, num_generations, population_size)
@@ -35,6 +32,7 @@ def start_evolution():
 
 @app.route('/api/progress')
 def progress():
+    from src.evolution.progress_tracker import get_progress
     return jsonify(get_progress())
 
 if __name__ == '__main__':
