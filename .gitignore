@@ -10,3 +10,5 @@ data/results/
 8*
 9*
 d*
+data/evolution_progress.json
+data/results/*.csv
