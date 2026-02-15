@@ -6,7 +6,7 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ./data/ollama:/root/.ollama
+      - ./data/ollama:/root/.ollama:z
 
   factorforge:
     build: .
@@ -18,10 +18,10 @@ services:
     ports:
       - "8050:8050"
     volumes:
-      - ./src:/app/src
-      - ./scripts:/app/scripts
-      - ./web:/app/web
-      - ./data:/app/data
+      - ./src:/app/src:z
+      - ./scripts:/app/scripts:z
+      - ./web:/app/web:z
+      - ./data:/app/data:z
     environment:
       - LLM_PROVIDER=ollama
       - OLLAMA_BASE_URL=http://ollama:11434
