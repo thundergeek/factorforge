@@ -5,25 +5,27 @@ echo "🚀 FactorForge Installer"
 echo
 
 # Check for Docker or Podman
-if command -v docker &> /dev/null; then
+if command -v docker &> /dev/null && docker info &> /dev/null; then
     DOCKER_CMD="docker"
+    COMPOSE_CMD="docker compose"
 elif command -v podman &> /dev/null; then
     DOCKER_CMD="podman"
-    alias docker=podman
+    # Try native podman compose first, fall back to podman-compose
+    if podman compose version &> /dev/null; then
+        COMPOSE_CMD="podman compose"
+    elif command -v podman-compose &> /dev/null; then
+        COMPOSE_CMD="podman-compose"
+    else
+        echo "❌ podman-compose not found. Installing..."
+        pip3 install --user podman-compose
+        COMPOSE_CMD="podman-compose"
+    fi
 else
     echo "❌ Neither Docker nor Podman found"
-    echo "On Bazzite: Podman is pre-installed"
-    echo "On other systems: Install Docker from https://www.docker.com/get-started"
     exit 1
 fi
 
 echo "✅ Using $DOCKER_CMD"
-
-if ! $DOCKER_CMD info &> /dev/null; then
-    echo "❌ $DOCKER_CMD daemon not running"
-    exit 1
-fi
-
 echo
 
 if [ -d "factorforge" ]; then
@@ -37,7 +39,7 @@ fi
 
 echo
 echo "🔨 Building containers (this may take a few minutes)..."
-$DOCKER_CMD compose up -d --build
+$COMPOSE_CMD up -d --build
 
 echo
 echo "⏳ Waiting for services to start..."
@@ -50,5 +52,5 @@ echo
 echo "✅ Done! Dashboard: http://localhost:8050"
 echo
 echo "Useful commands:"
-echo "  View logs:  $DOCKER_CMD compose logs -f factorforge"
-echo "  Stop:       $DOCKER_CMD compose down"
+echo "  View logs:  $COMPOSE_CMD logs -f factorforge"
+echo "  Stop:       $COMPOSE_CMD down"
