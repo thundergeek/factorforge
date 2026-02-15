@@ -1,0 +1,187 @@
+from dataclasses import dataclass
+from typing import List, Dict
+import json
+import sys
+
+import pandas as pd
+
+from src.config import settings
+from src.data import load_price_history
+from src.factors import evaluate_dsl_factor
+from src.evolution.progress_tracker import update_progress, clear_progress
+from src.backtest import backtest_long_short_factor, compute_forward_returns, compute_metrics
+from src.agents import FactorResearchAgent
+
+
+@dataclass
+class FactorResult:
+    hypothesis: str
+    dsl: str
+    metrics: Dict[str, float]
+
+
+def log_message(msg: str, level: str = "info"):
+    """Print log that gets captured by web UI"""
+    prefix = {
+        "info": "ℹ️",
+        "success": "✅",
+        "error": "❌",
+        "warning": "⚠️",
+        "progress": "🔄",
+        "newhigh": "🎉"
+    }.get(level, "")
+    
+    print(f"{prefix} {msg}", flush=True)
+
+
+def save_results(results: List[FactorResult]):
+    """Save results to CSV and JSON (called after each factor)"""
+    if not results:
+        return
+    
+    out_path = settings.results_dir / "factor_results.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    with out_path.open("w") as f:
+        json.dump(
+            [{"hypothesis": r.hypothesis, "dsl": r.dsl, "metrics": r.metrics} for r in results],
+            f,
+            indent=2,
+        )
+
+    df = pd.DataFrame([{"hypothesis": r.hypothesis, "dsl": r.dsl, **r.metrics} for r in results])
+    df = df.sort_values('ic', ascending=False)
+    df.to_csv(settings.results_dir / "factor_results.csv", index=False)
+
+
+def run_single_factor(prices: pd.DataFrame, dsl: str, hypothesis: str) -> FactorResult:
+    prices_copy = prices.copy()
+    
+    factor = evaluate_dsl_factor(dsl, prices_copy)
+    fwd_ret = compute_forward_returns(prices_copy, horizon=5)
+    ls_ret = backtest_long_short_factor(factor, fwd_ret)
+    m = compute_metrics(factor, fwd_ret, ls_ret)
+    return FactorResult(hypothesis=hypothesis, dsl=dsl, metrics=m)
+
+
+def run_evolution() -> None:
+    clear_progress()
+    log_message("="*60, "info")
+    log_message("ALPHA MINING EVOLUTION STARTED", "success")
+    log_message("="*60, "info")
+    
+    symbols = [s.strip() for s in settings.universe_symbols.split(",") if s.strip()]
+    log_message(f"Loading price data for {len(symbols)} symbols...", "progress")
+    log_message(f"Symbols: {', '.join(symbols[:10])}{'...' if len(symbols) > 10 else ''}", "info")
+    
+    prices = load_price_history(symbols)
+    log_message(f"Loaded {len(prices):,} rows of historical data", "success")
+    log_message(f"Date range: {prices.index.get_level_values('date').min()} to {prices.index.get_level_values('date').max()}", "info")
+    log_message("", "info")
+
+    agent = FactorResearchAgent()
+    results: List[FactorResult] = []
+    best_ic = float('-inf')
+    best_factor_dsl = ""
+
+    for gen in range(settings.max_generations):
+        update_progress(gen+1, settings.max_generations, 0, settings.agents_per_generation)
+        log_message("="*60, "info")
+        log_message(f"GENERATION {gen+1}/{settings.max_generations}", "progress")
+        log_message("="*60, "info")
+        
+        # Build history summary for learning
+        history_summary = ""
+        if results:
+            top_3 = sorted(results, key=lambda r: r.metrics.get('ic', -999), reverse=True)[:3]
+            history_summary = "Top factors so far:\n"
+            for i, r in enumerate(top_3, 1):
+                history_summary += f"{i}. {r.dsl} (IC={r.metrics.get('ic', 0):.4f})\n"
+            log_message(f"Best IC so far: {best_ic:.4f}", "info")
+        
+        for i in range(settings.agents_per_generation):
+            update_progress(gen+1, settings.max_generations, i+1, settings.agents_per_generation)
+            log_message(f"\n🤖 Agent {i+1}/{settings.agents_per_generation}", "info")
+            
+            try:
+                log_message("Querying LLM for factor idea...", "progress")
+                proposal = agent.propose_factor(history_summary if gen > 0 else None)
+                hypo = proposal.get("hypothesis", "")
+                dsl = proposal.get("dsl", "rolling_mean(close, 10)")
+                
+                log_message(f"Hypothesis: {hypo[:80]}{'...' if len(hypo) > 80 else ''}", "info")
+                log_message(f"DSL: {dsl}", "info")
+                log_message("Running backtest...", "progress")
+                
+                res = run_single_factor(prices, dsl, hypo)
+                results.append(res)
+                
+                # Save after each factor so stats update in real-time
+                save_results(results)
+                
+                ic = res.metrics.get('ic', float('nan'))
+                sharpe = res.metrics.get('sharpe', float('nan'))
+                arr = res.metrics.get('arr', float('nan'))
+                mdd = res.metrics.get('mdd', float('nan'))
+                
+                log_message(f"📊 Total factors tested: {len(results)}", "info")
+                
+                # Check for new high!
+                is_new_high = False
+                if ic > best_ic:
+                    is_new_high = True
+                    best_ic = ic
+                    best_factor_dsl = dsl
+                    log_message("", "info")
+                    log_message("🎉🎉🎉 NEW HIGH SCORE! 🎉🎉🎉", "newhigh")
+                    log_message(f"Previous best: {best_ic - ic:.4f} → New best: {ic:.4f}", "newhigh")
+                    log_message(f"Improvement: +{((ic - (best_ic - ic)) / abs(best_ic - ic) * 100) if (best_ic - ic) != 0 else 0:.1f}%", "newhigh")
+                    log_message("", "info")
+                
+                if ic > 0.10:
+                    log_message(f"🌟 EXCELLENT! IC={ic:.4f}, Sharpe={sharpe:.2f}, Return={arr*100:.1f}%, MDD={mdd*100:.1f}%", "success")
+                elif ic > 0.05:
+                    log_message(f"✅ GOOD! IC={ic:.4f}, Sharpe={sharpe:.2f}, Return={arr*100:.1f}%, MDD={mdd*100:.1f}%", "success")
+                elif ic > 0:
+                    log_message(f"⚠️  Weak: IC={ic:.4f}, Sharpe={sharpe:.2f}", "warning")
+                else:
+                    log_message(f"❌ Bad: IC={ic:.4f} (predicts backwards)", "error")
+                    
+            except Exception as e:
+                log_message(f"ERROR: {str(e)}", "error")
+                log_message(f"Failed DSL: {dsl}", "error")
+
+    # Final summary
+    log_message("", "info")
+    log_message("="*60, "info")
+    log_message("EVOLUTION COMPLETE!", "success")
+    log_message("="*60, "info")
+    
+    if results:
+        df = pd.DataFrame([{"hypothesis": r.hypothesis, "dsl": r.dsl, **r.metrics} for r in results])
+        df = df.sort_values('ic', ascending=False)
+        
+        log_message(f"Total factors tested: {len(results)}", "info")
+        
+        excellent = len(df[df['ic'] > 0.10])
+        good = len(df[df['ic'] > 0.05])
+        weak = len(df[(df['ic'] > 0) & (df['ic'] <= 0.05)])
+        bad = len(df[df['ic'] <= 0])
+        
+        log_message(f"🌟 Excellent (IC > 0.10): {excellent}", "success" if excellent > 0 else "info")
+        log_message(f"✅ Good (IC > 0.05): {good}", "success" if good > 0 else "info")
+        log_message(f"⚠️  Weak (0 < IC < 0.05): {weak}", "warning")
+        log_message(f"❌ Bad (IC < 0): {bad}", "error")
+        
+        if not df.empty:
+            log_message("", "info")
+            log_message("🏆 TOP 3 FACTORS:", "success")
+            for idx, (i, row) in enumerate(df.head(3).iterrows(), 1):
+                log_message(f"{idx}. {row['dsl']}", "info")
+                log_message(f"   IC={row['ic']:.4f}, Sharpe={row.get('sharpe', 0):.2f}, Return={row.get('arr', 0)*100:.1f}%", "info")
+        
+        log_message("", "info")
+        log_message(f"🎯 FINAL BEST IC: {best_ic:.4f}", "success")
+        log_message(f"Results saved to: {settings.results_dir}", "success")
+    else:
+        log_message("No successful factors generated", "warning")

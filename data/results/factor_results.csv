@@ -1,0 +1,10 @@
+hypothesis,dsl,ic,arr,mdd,sharpe
+Volume surge,"zscore(volume, 20)",0.010833351626384793,,,
+Volume surge,"zscore(volume, 20)",0.010833351626384793,,,
+Volume surge,"zscore(volume, 20)",0.010833351626384793,,,
+Mean reversion,"zscore(close, 20)",-0.012517024660606056,,,
+Mean reversion,"zscore(close, 20)",-0.012517024660606056,,,
+Mean reversion,"zscore(close, 20)",-0.012517024660606056,,,
+Risk-adjusted momentum,"pct_change(close, 10) / rolling_std(pct_change(close, 1), 20)",-0.012981125202815273,,,
+Risk-adjusted momentum,"pct_change(close, 10) / rolling_std(pct_change(close, 1), 20)",-0.012981125202815273,,,
+Inverse volatility,"1 / (rolling_std(pct_change(close, 1), 20) + 0.01)",-0.01310595142647559,,,

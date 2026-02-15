@@ -1,0 +1,92 @@
+[
+  {
+    "hypothesis": "Volume surge",
+    "dsl": "zscore(volume, 20)",
+    "metrics": {
+      "ic": 0.010833351626384793,
+      "arr": NaN,
+      "mdd": NaN,
+      "sharpe": NaN
+    }
+  },
+  {
+    "hypothesis": "Risk-adjusted momentum",
+    "dsl": "pct_change(close, 10) / rolling_std(pct_change(close, 1), 20)",
+    "metrics": {
+      "ic": -0.012981125202815273,
+      "arr": NaN,
+      "mdd": NaN,
+      "sharpe": NaN
+    }
+  },
+  {
+    "hypothesis": "Risk-adjusted momentum",
+    "dsl": "pct_change(close, 10) / rolling_std(pct_change(close, 1), 20)",
+    "metrics": {
+      "ic": -0.012981125202815273,
+      "arr": NaN,
+      "mdd": NaN,
+      "sharpe": NaN
+    }
+  },
+  {
+    "hypothesis": "Inverse volatility",
+    "dsl": "1 / (rolling_std(pct_change(close, 1), 20) + 0.01)",
+    "metrics": {
+      "ic": -0.01310595142647559,
+      "arr": NaN,
+      "mdd": NaN,
+      "sharpe": NaN
+    }
+  },
+  {
+    "hypothesis": "Mean reversion",
+    "dsl": "zscore(close, 20)",
+    "metrics": {
+      "ic": -0.012517024660606056,
+      "arr": NaN,
+      "mdd": NaN,
+      "sharpe": NaN
+    }
+  },
+  {
+    "hypothesis": "Volume surge",
+    "dsl": "zscore(volume, 20)",
+    "metrics": {
+      "ic": 0.010833351626384793,
+      "arr": NaN,
+      "mdd": NaN,
+      "sharpe": NaN
+    }
+  },
+  {
+    "hypothesis": "Volume surge",
+    "dsl": "zscore(volume, 20)",
+    "metrics": {
+      "ic": 0.010833351626384793,
+      "arr": NaN,
+      "mdd": NaN,
+      "sharpe": NaN
+    }
+  },
+  {
+    "hypothesis": "Mean reversion",
+    "dsl": "zscore(close, 20)",
+    "metrics": {
+      "ic": -0.012517024660606056,
+      "arr": NaN,
+      "mdd": NaN,
+      "sharpe": NaN
+    }
+  },
+  {
+    "hypothesis": "Mean reversion",
+    "dsl": "zscore(close, 20)",
+    "metrics": {
+      "ic": -0.012517024660606056,
+      "arr": NaN,
+      "mdd": NaN,
+      "sharpe": NaN
+    }
+  }
+]
